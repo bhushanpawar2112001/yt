@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>IG → YouTube</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, sans-serif;
+      background: #0f0f0f;
+      color: #f1f1f1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 60px 20px;
+    }
+
+    h1 { font-size: 1.6rem; margin-bottom: 8px; }
+    p.sub { color: #aaa; margin-bottom: 32px; font-size: 0.9rem; }
+
+    .card {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 12px;
+      padding: 28px;
+      width: 100%;
+      max-width: 520px;
+    }
+
+    label { font-size: 0.85rem; color: #aaa; display: block; margin-bottom: 8px; }
+
+    textarea {
+      width: 100%;
+      min-height: 130px;
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 8px;
+      color: #f1f1f1;
+      font-size: 0.9rem;
+      padding: 12px;
+      resize: vertical;
+      outline: none;
+    }
+    textarea:focus { border-color: #555; }
+
+    button {
+      margin-top: 14px;
+      width: 100%;
+      padding: 12px;
+      background: #ff0000;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    button:hover { background: #cc0000; }
+    button:disabled { background: #555; cursor: not-allowed; }
+
+    #msg {
+      margin-top: 16px;
+      font-size: 0.88rem;
+      min-height: 20px;
+      color: #4caf50;
+    }
+    #msg.error { color: #f44336; }
+
+    .queue {
+      margin-top: 36px;
+      width: 100%;
+      max-width: 520px;
+    }
+    .queue h2 { font-size: 1rem; color: #aaa; margin-bottom: 12px; }
+
+    .item {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.82rem;
+      gap: 10px;
+    }
+    .item .url { color: #bbb; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 340px; }
+    .badge {
+      padding: 3px 8px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .pending  { background: #2a2a00; color: #ffeb3b; }
+    .posted   { background: #003300; color: #4caf50; }
+    .failed   { background: #330000; color: #f44336; }
+  </style>
+</head>
+<body>
+  <h1>📥 IG → YouTube</h1>
+  <p class="sub">Paste Instagram URLs — one per line. We'll post one video per day.</p>
+
+  <div class="card">
+    <label>Instagram URLs (one per line)</label>
+    <textarea id="urls" placeholder="https://www.instagram.com/reel/ABC123/&#10;https://www.instagram.com/reel/XYZ456/"></textarea>
+    <button id="btn" onclick="submit()">Add to Queue</button>
+    <button id="triggerBtn" onclick="triggerNow()" style="margin-top:8px;background:#222;border:1px solid #444;color:#f1f1f1;">▶ Post Next Video Now</button>
+    <div id="msg"></div>
+  </div>
+
+  <div class="queue">
+    <h2>Queue</h2>
+    <div id="list">Loading...</div>
+  </div>
+
+  <script>
+    async function triggerNow() {
+      const btn = document.getElementById("triggerBtn");
+      const msg = document.getElementById("msg");
+      msg.className = "";
+      msg.textContent = "";
+      btn.disabled = true;
+      btn.textContent = "Uploading...";
+      try {
+        const res = await fetch("/trigger", { method: "POST" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed");
+        msg.textContent = "✓ Upload triggered! Check the queue below.";
+        loadQueue();
+      } catch (e) {
+        msg.className = "error";
+        msg.textContent = "Error: " + e.message;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "▶ Post Next Video Now";
+      }
+    }
+
+    async function submit() {
+      const raw = document.getElementById("urls").value.trim();
+      const msg = document.getElementById("msg");
+      const btn = document.getElementById("btn");
+      msg.className = "";
+      msg.textContent = "";
+
+      if (!raw) { msg.textContent = "Paste at least one URL."; msg.className = "error"; return; }
+
+      const urls = raw.split("\n").map(u => u.trim()).filter(Boolean);
+      btn.disabled = true;
+      btn.textContent = "Adding...";
+
+      try {
+        const res = await fetch("/queue", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ urls }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed");
+        msg.textContent = `✓ Added ${data.added} video(s). ${data.skipped} duplicate(s) skipped.`;
+        document.getElementById("urls").value = "";
+        loadQueue();
+      } catch (e) {
+        msg.className = "error";
+        msg.textContent = "Error: " + e.message;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Add to Queue";
+      }
+    }
+
+    async function loadQueue() {
+      const list = document.getElementById("list");
+      try {
+        const res = await fetch("/queue");
+        const videos = await res.json();
+        if (!videos.length) { list.innerHTML = '<p style="color:#555;font-size:0.85rem">No videos queued yet.</p>'; return; }
+        list.innerHTML = videos.map(v => `
+          <div class="item">
+            <span class="url">${v.youtubeUrl
+              ? `<a href="${v.youtubeUrl}" target="_blank" style="color:#4caf50">${v.igUrl}</a>`
+              : v.igUrl}</span>
+            <span class="badge ${v.status}">${v.status}</span>
+          </div>`).join("");
+      } catch {
+        list.innerHTML = '<p style="color:#f44336;font-size:0.85rem">Failed to load queue.</p>';
+      }
+    }
+
+    loadQueue();
+  </script>
+</body>
+</html>
