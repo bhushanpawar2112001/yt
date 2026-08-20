@@ -109,6 +109,16 @@
   <div class="card">
     <label>Instagram URLs (one per line)</label>
     <textarea id="urls" placeholder="https://www.instagram.com/reel/ABC123/&#10;https://www.instagram.com/reel/XYZ456/"></textarea>
+
+    <label style="margin-top:14px">Title</label>
+    <input id="title" type="text" placeholder="Instagram Reel" style="width:100%;background:#111;border:1px solid #333;border-radius:8px;color:#f1f1f1;font-size:0.9rem;padding:10px 12px;outline:none;" />
+
+    <label style="margin-top:14px">Description</label>
+    <textarea id="description" placeholder="Optional description..." style="min-height:70px"></textarea>
+
+    <label style="margin-top:14px">Tags <span style="color:#555">(comma separated)</span></label>
+    <input id="tags" type="text" placeholder="reels, viral, shorts" style="width:100%;background:#111;border:1px solid #333;border-radius:8px;color:#f1f1f1;font-size:0.9rem;padding:10px 12px;outline:none;" />
+
     <button id="btn" onclick="submit()">Add to Queue</button>
     <button id="triggerBtn" onclick="triggerNow()" style="margin-top:8px;background:#222;border:1px solid #444;color:#f1f1f1;">▶ Post Next Video Now</button>
     <div id="msg"></div>
@@ -159,7 +169,12 @@
         const res = await fetch("/queue", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ urls }),
+          body: JSON.stringify({
+            urls,
+            title: document.getElementById("title").value.trim() || "Instagram Reel",
+            description: document.getElementById("description").value.trim(),
+            tags: document.getElementById("tags").value.trim(),
+          }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Failed");

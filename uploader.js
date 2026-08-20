@@ -4,6 +4,7 @@ const path = require("path");
 const { google } = require("googleapis");
 const snapsave = require("./snapsave-downloader/src/index");
 const Video = require("./models/Video");
+const scrapeInstaInfo = require("./scrapeInsta");
 
 const TOKENS_FILE = path.join(__dirname, "tokens.json");
 
@@ -31,13 +32,23 @@ async function postNextVideo() {
 
   const tmpFile = path.join(__dirname, `tmp_${Date.now()}.mp4`);
   try {
-    // 1. Get download URL
+    // 1. Auto-scrape Instagram caption/tags if not already set
+    if (!video.title || video.title === "Instagram Reel") {
+      console.log(`[scheduler] Scraping caption from Instagram...`);
+      const info = await scrapeInstaInfo(video.igUrl);
+      video.title = info.title;
+      video.description = info.description;
+      video.tags = info.tags;
+      await video.save();
+    }
+
+    // 2. Get download URL
     const result = await snapsave(video.igUrl);
     if (!result.status) throw new Error(result.msg || "snapsave failed");
 
     const downloadUrl = result.data[0].url;
 
-    // 2. Download video
+    // 3. Download video
     const response = await axios.get(downloadUrl, { responseType: "stream" });
     const writer = fs.createWriteStream(tmpFile);
     response.data.pipe(writer);
@@ -57,8 +68,9 @@ async function postNextVideo() {
       part: ["snippet", "status"],
       requestBody: {
         snippet: {
-          title: "Instagram Reel",
-          description: "",
+          title: video.title || "Instagram Reel",
+          description: video.description || "",
+          tags: video.tags || [],
           categoryId: "22",
         },
         status: { privacyStatus: "public" },

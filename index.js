@@ -51,11 +51,10 @@ app.get("/auth/youtube/callback", async (req, res) => {
 
 // POST /queue — add URLs (bulk, deduped)
 app.post("/queue", async (req, res) => {
-  const { urls } = req.body;
+  const { urls, title, description, tags } = req.body;
   if (!Array.isArray(urls) || !urls.length)
     return res.status(400).json({ error: "urls array is required" });
 
-  // Validate all are Instagram/Facebook URLs
   const valid = urls.filter((u) =>
     /(https?:\/\/(web\.|www\.|m\.)?(facebook|fb)\.(com|watch)\S+)?$/.test(u) ||
     /(https|http):\/\/www\.instagram\.com\/(p|reel|tv|stories)/i.test(u)
@@ -69,10 +68,15 @@ app.post("/queue", async (req, res) => {
 
   for (const igUrl of valid) {
     try {
-      await Video.create({ igUrl });
+      await Video.create({
+        igUrl,
+        title: title || "Instagram Reel",
+        description: description || "",
+        tags: tags ? tags.split(",").map((t) => t.trim()) : [],
+      });
       added++;
     } catch (err) {
-      if (err.code === 11000) skipped++; // duplicate
+      if (err.code === 11000) skipped++;
       else throw err;
     }
   }
