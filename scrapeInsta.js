@@ -1,60 +1,36 @@
 const axios = require("axios");
-const cheerio = require("cheerio");
 
 /**
- * Scrape title, description, and hashtags from an Instagram post URL.
- * Uses the public oEmbed endpoint + meta tag scraping — no login needed.
+ * Fetch Instagram post info using the public oEmbed API.
+ * No login, no scraping — works from servers.
  */
 async function scrapeInstaInfo(igUrl) {
   try {
-    // Instagram's public oEmbed (gives clean title/author)
-    const oembed = await axios.get(
-      `https://www.instagram.com/api/v1/oembed/?url=${encodeURIComponent(igUrl)}`,
+    const { data } = await axios.get(
+      `https://graph.facebook.com/v18.0/instagram_oembed?url=${encodeURIComponent(igUrl)}&maxwidth=320`,
       {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+        params: {
+          access_token: `${process.env.FB_APP_ID}|${process.env.FB_APP_SECRET}`,
         },
         timeout: 8000,
       }
     );
 
-    const oembedTitle = oembed.data?.title || "";
-
-    // Also scrape the page for og:description which contains the full caption
-    const page = await axios.get(igUrl, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
-        Accept: "text/html",
-      },
-      timeout: 10000,
-    });
-
-    const $ = cheerio.load(page.data);
-    const ogDesc =
-      $('meta[property="og:description"]').attr("content") ||
-      $('meta[name="description"]').attr("content") ||
-      oembedTitle ||
-      "";
-
-    // Extract hashtags from the caption
-    const hashtags = [...ogDesc.matchAll(/#[\w\u0080-\uFFFF]+/g)].map(
+    const caption = data.title || "";
+    const hashtags = [...caption.matchAll(/#[\w\u0080-\uFFFF]+/g)].map(
       (m) => m[0].replace("#", "").trim()
     );
-
-    // Clean description — remove hashtags from end for a cleaner YT description
-    const description = ogDesc.trim();
-
-    // Title: first sentence of caption or oEmbed title
     const title =
-      oembedTitle ||
-      ogDesc.split(/[.\n]/)[0].replace(/#[\w]+/g, "").trim().slice(0, 100) ||
+      caption.replace(/#[\w\u0080-\uFFFF]+/g, "").trim().split("\n")[0].slice(0, 100) ||
       "Instagram Reel";
 
-    return { title, description, tags: hashtags };
+    console.log(`[scrapeInsta] Title: ${title}`);
+    console.log(`[scrapeInsta] Tags: ${hashtags.join(", ") || "none"}`);
+
+    return { title, description: caption, tags: hashtags };
   } catch (err) {
-    console.warn("[scrapeInsta] Could not fetch caption:", err.message);
+    // Fallback — use URL-based title, no tags
+    console.warn("[scrapeInsta] oEmbed failed:", err.message);
     return { title: "Instagram Reel", description: "", tags: [] };
   }
 }
