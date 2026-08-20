@@ -51,7 +51,7 @@ app.get("/auth/youtube/callback", async (req, res) => {
 
 // POST /queue — add URLs (bulk, deduped)
 app.post("/queue", async (req, res) => {
-  const { urls, title, description, tags } = req.body;
+  const { urls } = req.body;
   if (!Array.isArray(urls) || !urls.length)
     return res.status(400).json({ error: "urls array is required" });
 
@@ -68,12 +68,7 @@ app.post("/queue", async (req, res) => {
 
   for (const igUrl of valid) {
     try {
-      await Video.create({
-        igUrl,
-        title: title || "Instagram Reel",
-        description: description || "",
-        tags: tags ? tags.split(",").map((t) => t.trim()) : [],
-      });
+      await Video.create({ igUrl }); // title/desc/tags scraped at upload time
       added++;
     } catch (err) {
       if (err.code === 11000) skipped++;
