@@ -5,7 +5,7 @@ async function test(url) {
   return result;
 }
 
-test("https://www.instagram.com/p/DLHQfPiyucu/")
+test("https://www.instagram.com/reel/DcHxaQgiwMr/")
   .then((result) => {
     console.log(result);
   })
